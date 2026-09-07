@@ -1,0 +1,23 @@
+{
+  "name": "poseboard",
+  "private": true,
+  "version": "1.0.0",
+  "author": "PoseBoard",
+  "description": "PoseBoard local reference library",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:backend": "cd backend && ..\\.venv\\Scripts\\python.exe -m uvicorn main:app --host 127.0.0.1 --port 5178 --reload",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:electron": "wait-on http://127.0.0.1:5178/health http://127.0.0.1:5173 && electron .",
+    "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": ".venv\\Scripts\\python.exe -m PyInstaller backend\\pyinstaller.spec --noconfirm",
+    "dist": "npm run build:frontend && npm run build:backend && electron-builder --config electron/builder.yml"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^28.3.3",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.1"
+  }
+}

@@ -1,0 +1,9 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pillow==11.0.0
+numpy==1.26.4
+mediapipe==0.10.18
+python-multipart==0.0.20
+httpx==0.28.1
+pytest==8.3.4
+pyinstaller==6.11.1
