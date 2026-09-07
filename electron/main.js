@@ -1,8 +1,9 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, shell } = require("electron");
 const { spawn } = require("child_process");
 const net = require("net");
 const path = require("path");
 const http = require("http");
+const fs = require("fs");
 
 let mainWindow = null;
 let backendProcess = null;
@@ -85,8 +86,13 @@ function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    minWidth: 1024,
+    minHeight: 640,
     title: "姿态图库",
+    frame: false,
     autoHideMenuBar: true,
+    backgroundColor: "#ffffff",
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -94,6 +100,15 @@ function createWindow(port) {
     },
   });
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.once("ready-to-show", () => mainWindow.show());
+  const sendMax = () => {
+    if (!mainWindow) return;
+    mainWindow.webContents.send("win-maximized", mainWindow.isMaximized() || mainWindow.isFullScreen());
+  };
+  mainWindow.on("maximize", sendMax);
+  mainWindow.on("unmaximize", sendMax);
+  mainWindow.on("enter-full-screen", sendMax);
+  mainWindow.on("leave-full-screen", sendMax);
   mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
     dialog.showErrorBox("页面加载失败", `${desc} (${code})\n${url || ""}`);
   });
@@ -125,6 +140,39 @@ ipcMain.handle("select-folder", async () => {
 });
 
 ipcMain.handle("get-api-base", () => `http://127.0.0.1:${backendPort}`);
+
+ipcMain.handle("copy-text", (_e, text) => {
+  clipboard.writeText(String(text ?? ""));
+  return true;
+});
+
+ipcMain.handle("copy-image-from-file", (_e, filePath) => {
+  const img = nativeImage.createFromPath(String(filePath ?? ""));
+  if (img.isEmpty()) return false;
+  clipboard.writeImage(img);
+  return true;
+});
+
+ipcMain.handle("show-in-folder", (_e, filePath) => {
+  const target = String(filePath ?? "");
+  if (!target || !fs.existsSync(target)) return false;
+  shell.showItemInFolder(target);
+  return true;
+});
+
+ipcMain.handle("save-data-url", async (_e, fileName, dataUrl) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "导出色卡",
+    defaultPath: String(fileName || "palette.png"),
+    filters: [{ name: "PNG", extensions: ["png"] }],
+  });
+  if (result.canceled || !result.filePath) return false;
+  const raw = String(dataUrl || "");
+  const comma = raw.indexOf(",");
+  const buf = Buffer.from(comma >= 0 ? raw.slice(comma + 1) : raw, "base64");
+  fs.writeFileSync(result.filePath, buf);
+  return true;
+});
 
 ipcMain.handle("set-always-on-top", (_e, flag) => {
   if (!mainWindow) return false;
@@ -164,6 +212,29 @@ ipcMain.handle("set-maximized", (_e, flag) => {
   else if (mainWindow.isMaximized()) mainWindow.unmaximize();
   return mainWindow.isMaximized();
 });
+
+ipcMain.handle("win-minimize", () => {
+  mainWindow?.minimize();
+  return true;
+});
+
+ipcMain.handle("win-maximize", () => {
+  if (!mainWindow) return false;
+  if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+    return false;
+  }
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+  return mainWindow.isMaximized();
+});
+
+ipcMain.handle("win-close", () => {
+  mainWindow?.close();
+  return true;
+});
+
+ipcMain.handle("win-is-maximized", () => Boolean(mainWindow && (mainWindow.isMaximized() || mainWindow.isFullScreen())));
 
 function applyAppName() {
   app.setName("姿态图库");

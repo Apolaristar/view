@@ -124,3 +124,11 @@ def test_identical_landmarks_distance_zero():
     assert pose_similarity_distance(pose, pose) == 0
     # mirrored standing is still closer to standing than to a kick
     assert pose_similarity_distance(pose, standing_pose()) < pose_similarity_distance(pose, kick_pose())
+
+
+def test_face_landmarks_do_not_change_distance():
+    a = standing_pose()
+    b = standing_pose()
+    b[2] = {**b[2], "x": 0.91, "y": 0.04}
+    b[19] = {**b[19], "x": 0.12, "y": 0.88}
+    assert pose_similarity_distance(a, b) == 0

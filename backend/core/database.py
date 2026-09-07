@@ -107,6 +107,7 @@ DEFAULT_SETTINGS = {
     "last_backup_at": "",
     "backup_remind_days": "7",
     "color_mode": "full",
+    "ui_theme": "atelier",
 }
 
 

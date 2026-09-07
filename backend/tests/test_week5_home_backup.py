@@ -52,6 +52,15 @@ def test_settings_shows_data_path(client, data_dir):
     assert (data_dir / "originals").is_dir()
 
 
+def test_ui_theme_setting(client):
+    assert client.get("/api/v1/settings").json()["data"]["ui_theme"] == "atelier"
+    saved = client.put("/api/v1/settings", json={"ui_theme": "night"}).json()["data"]
+    assert saved["ui_theme"] == "night"
+    assert client.get("/api/v1/settings").json()["data"]["ui_theme"] == "night"
+    bad = client.put("/api/v1/settings", json={"ui_theme": "neon"})
+    assert bad.status_code == 422
+
+
 def test_backup_and_restore_roundtrip(client, sample_files):
     imported = import_ok(client, [sample_files["blue"], sample_files["orange"]])
     ids = [x["id"] for x in imported["imported"]]

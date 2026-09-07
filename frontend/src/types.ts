@@ -89,6 +89,7 @@ export type ImageItem = {
   created_at: string;
   thumbnail_url: string;
   original_url: string;
+  local_path?: string;
   pose_landmarks: { id: number; x: number; y: number; visibility: number }[];
   tags: Tag[];
 };

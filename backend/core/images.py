@@ -42,6 +42,7 @@ def serialize_image(row: dict, tags: Optional[list] = None) -> dict:
         "created_at": row["created_at"],
         "thumbnail_url": f"/media/thumbnails/{uid}",
         "original_url": f"/media/originals/{uid}",
+        "local_path": str(originals_dir() / row["original_path"]),
         "tags": tags if tags is not None else [],
     }
 
@@ -231,6 +232,22 @@ def patch_image(
             )
         if primary_family is not None or secondary_family is not None or extra_families is not None:
             conn.execute("UPDATE images SET color_manual = 1 WHERE id = ?", (image_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return get_image(image_id)
+
+
+def save_palette(image_id: int, palette: list) -> Optional[dict]:
+    conn = connect()
+    try:
+        row = conn.execute("SELECT id FROM images WHERE id = ?", (image_id,)).fetchone()
+        if row is None:
+            return None
+        conn.execute(
+            "UPDATE images SET palette = ?, color_status = 'ok' WHERE id = ?",
+            (json.dumps(palette, ensure_ascii=False), image_id),
+        )
         conn.commit()
     finally:
         conn.close()

@@ -183,7 +183,15 @@ def _kmeans(pixels: np.ndarray, k: int = 5, iters: int = 10, seed: int = 7) -> t
     return centers, counts
 
 
-def extract_palette(image_path: str | Any, k: int = 5) -> list[dict]:
+def extract_palette(
+    image_path: str | Any,
+    k: int = 5,
+    min_ratio: float = 0.03,
+    limit: int | None = None,
+) -> list[dict]:
+    k = max(1, min(int(k), 16))
+    if limit is None:
+        limit = 5 if k <= 5 else k
     with Image.open(image_path) as im:
         im = im.convert("RGB")
         im.thumbnail((256, 256))
@@ -193,8 +201,10 @@ def extract_palette(image_path: str | Any, k: int = 5) -> list[dict]:
     total = counts.sum() or 1.0
     colors: list[dict] = []
     for center, count in zip(centers, counts):
+        if count <= 0:
+            continue
         ratio = float(count / total)
-        if ratio < 0.03:
+        if ratio < min_ratio:
             continue
         r, g, b = [int(max(0, min(255, round(c)))) for c in center]
         h, s, l = rgb_to_hsl(r, g, b)
@@ -209,7 +219,7 @@ def extract_palette(image_path: str | Any, k: int = 5) -> list[dict]:
             }
         )
     colors.sort(key=lambda c: c["ratio"], reverse=True)
-    return colors[:5]
+    return colors[:limit]
 
 
 def extract_from_file(path) -> dict:

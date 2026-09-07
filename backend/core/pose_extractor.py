@@ -9,23 +9,17 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
+# Nose + shoulders, elbows, wrists, hips, knees, ankles. Face/hands/heels are ignored.
+BODY_LANDMARK_IDS = (0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28)
+BODY_LANDMARK_SET = set(BODY_LANDMARK_IDS)
+
 LEFT_RIGHT_PAIRS = [
-    (1, 4),
-    (2, 5),
-    (3, 6),
-    (7, 8),
-    (9, 10),
     (11, 12),
     (13, 14),
     (15, 16),
-    (17, 18),
-    (19, 20),
-    (21, 22),
     (23, 24),
     (25, 26),
     (27, 28),
-    (29, 30),
-    (31, 32),
 ]
 
 WEIGHTS = {
@@ -151,7 +145,11 @@ def align_points(points: list[dict]) -> dict[int, np.ndarray]:
             dtype=np.float64,
         )
     else:
-        vis = [p for p in points if p.get("visibility", 0) >= VISIBILITY_MIN]
+        vis = [
+            p
+            for p in points
+            if int(p["id"]) in BODY_LANDMARK_SET and p.get("visibility", 0) >= VISIBILITY_MIN
+        ]
         origin = np.array(
             [np.mean([p["x"] for p in vis]), np.mean([p["y"] for p in vis])],
             dtype=np.float64,
@@ -173,10 +171,11 @@ def align_points(points: list[dict]) -> dict[int, np.ndarray]:
         scale = 1.0
     aligned: dict[int, np.ndarray] = {}
     for p in points:
-        if p.get("visibility", 0) < VISIBILITY_MIN:
+        idx = int(p["id"])
+        if idx not in BODY_LANDMARK_SET or p.get("visibility", 0) < VISIBILITY_MIN:
             continue
         xy = np.array([p["x"], p["y"]], dtype=np.float64)
-        aligned[int(p["id"])] = (xy - origin) / scale
+        aligned[idx] = (xy - origin) / scale
     return aligned
 
 
@@ -201,11 +200,12 @@ def pose_distance(a: list[dict], b: list[dict]) -> float:
     bb = align_points(b)
     total = 0.0
     wsum = 0.0
-    for idx, pa in aa.items():
+    for idx in BODY_LANDMARK_IDS:
+        pa = aa.get(idx)
         pb = bb.get(idx)
-        if pb is None:
+        if pa is None or pb is None:
             continue
-        w = WEIGHTS.get(idx, 0.7)
+        w = WEIGHTS[idx]
         total += w * float(np.linalg.norm(pa - pb))
         wsum += w
     if wsum == 0:

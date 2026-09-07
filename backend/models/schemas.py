@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -54,6 +54,11 @@ class BatchTagsRequest(BaseModel):
 class ReprocessRequest(BaseModel):
     pose: bool = True
     color: bool = True
+
+
+class PaletteExtractRequest(BaseModel):
+    k: int = Field(default=8, ge=2, le=16)
+    apply: bool = False
 
 
 class PoseSearchRequest(BaseModel):
@@ -116,4 +121,4 @@ class BackupCreate(BaseModel):
 class SettingsPut(BaseModel):
     last_opened_board_id: Optional[str] = None
     backup_remind_days: Optional[str] = None
-    color_mode: Optional[str] = None
+    ui_theme: Optional[Literal["atelier", "night", "paper"]] = None

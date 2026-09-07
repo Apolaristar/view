@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Button, Input, Select, Space, Empty, message, Checkbox, Modal, Dropdown } from "antd";
+import { Button, Input, Select, Space, Empty, message, Checkbox, Modal, Dropdown, Tooltip } from "antd";
 import { useImage, useImages, useTags, useBoards } from "../api/hooks";
 import { request } from "../api/client";
 import { type ImageItem, type Tag } from "../types";
@@ -8,9 +8,14 @@ import { familyText, poseStatusText } from "../i18n";
 import { useQueryClient } from "@tanstack/react-query";
 import { groupByAlbumDate } from "../album";
 import MediaImg from "../components/MediaImg";
+import PoseOverlay from "../components/PoseOverlay";
 import FamilyPicker, { FamilyDropdown } from "../components/FamilyPicker";
 import TagChipBar from "../components/TagChipBar";
+import PaletteExtractModal from "../components/PaletteExtractModal";
 import { replaceGroup } from "../tagOrder";
+import { copyImageFromFile, copyText, saveDataUrl, showInFolder } from "../desktop";
+import { paletteCardDataUrl, paletteHexList } from "../paletteCard";
+import { hasPoseOverlay } from "../poseSkeleton";
 
 function splitTags(tags: Tag[]) {
   const categories = tags.filter((t) => t.kind === "category");
@@ -26,7 +31,11 @@ export default function LibraryPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [flashId, setFlashId] = useState<number | null>(null);
   const [addBoardOpen, setAddBoardOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [detailTap, setDetailTap] = useState(false);
+  const [detailOutline, setDetailOutline] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(false);
   const [tagModal, setTagModal] = useState<
     | { mode: "create"; kind: "category" | "facet" | "custom"; parentId?: number }
     | { mode: "rename"; tag: Tag }
@@ -55,6 +64,12 @@ export default function LibraryPage() {
   const selectedFacet = tree.facets.find((f) => selectedTagSet.has(String(f.id)));
   const activeParentId = selectedFacet?.parent_id || selectedCategory?.id;
   const visibleFacets = tree.facets.filter((f) => f.parent_id === activeParentId);
+
+  useEffect(() => {
+    setDetailOutline(false);
+    setDetailTap(false);
+    setPaletteOpen(false);
+  }, [current?.id]);
 
   function setFilter(key: string, value: string) {
     const next = new URLSearchParams(params);
@@ -382,18 +397,98 @@ export default function LibraryPage() {
     ];
   }
 
+  function cacheImage(updated: ImageItem) {
+    qc.setQueryData(["image", updated.id], updated);
+    qc.setQueriesData({ queryKey: ["images"] }, (old: { items: ImageItem[]; total: number } | undefined) => {
+      if (!old?.items) return old;
+      return { ...old, items: old.items.map((item) => (item.id === updated.id ? { ...item, ...updated, tags: updated.tags || item.tags } : item)) };
+    });
+  }
+
+  function detailMenu(img: ImageItem) {
+    return [
+      { key: "extract", label: "提取色卡", onClick: () => setPaletteOpen(true) },
+      {
+        key: "copyHex",
+        label: "复制全部色号",
+        disabled: !img.palette?.length,
+        onClick: () =>
+          void copyText(paletteHexList(img.palette)).then(
+            () => message.success("已复制全部色号"),
+            () => message.error("复制失败")
+          ),
+      },
+      {
+        key: "export",
+        label: "导出色卡 PNG",
+        disabled: !img.palette?.length,
+        onClick: () =>
+          void saveDataUrl(`${img.uid}-色卡.png`, paletteCardDataUrl(img.palette, "色卡")).then((ok) => {
+            if (ok) message.success("色卡已导出");
+          }),
+      },
+      { type: "divider" as const },
+      {
+        key: "locate",
+        label: "定位到图库",
+        onClick: () => {
+          setDetailOutline(true);
+          locateInGallery(img.id);
+        },
+      },
+      pickBoardId
+        ? { key: "pick", label: `导入到「${pickBoard?.name || "当前画板"}」`, onClick: () => addManyToBoard([img.id], Number(pickBoardId)) }
+        : {
+            key: "board",
+            label: "加入画板",
+            onClick: () => {
+              if (boards.data?.length) setAddBoardOpen(true);
+              else void addToBoard(img.id);
+            },
+          },
+      { type: "divider" as const },
+      {
+        key: "copyImg",
+        label: "复制原图",
+        onClick: () => {
+          if (!img.local_path) {
+            message.error("找不到原文件");
+            return;
+          }
+          void copyImageFromFile(img.local_path).then(
+            () => message.success("已复制原图"),
+            (err: unknown) => message.error(err instanceof Error ? err.message : "复制失败")
+          );
+        },
+      },
+      {
+        key: "folder",
+        label: "在文件夹中显示",
+        onClick: () => {
+          if (!img.local_path) {
+            message.error("找不到原文件");
+            return;
+          }
+          void showInFolder(img.local_path).then(
+            () => undefined,
+            (err: unknown) => message.error(err instanceof Error ? err.message : "无法打开文件夹")
+          );
+        },
+      },
+      {
+        key: "size",
+        label: `复制尺寸 ${img.width}×${img.height}`,
+        onClick: () =>
+          void copyText(`${img.width}×${img.height}`).then(
+            () => message.success("已复制尺寸"),
+            () => message.error("复制失败")
+          ),
+      },
+    ];
+  }
+
   return (
-    <div
-      className="library-page"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "240px 1fr 300px",
-        gridTemplateRows: "minmax(0, 1fr)",
-        gap: 12,
-        height: "100%",
-        minHeight: 0,
-      }}
-    >
+    <div className="library-page">
       <div className="pb-scroll pb-lib-col pb-lib-filters">
         <div className="pb-section-title">大类</div>
         <TagChipBar
@@ -536,25 +631,63 @@ export default function LibraryPage() {
       <div className="pb-scroll pb-lib-col pb-lib-detail">
         {current ? (
           <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-            <div className="pb-detail-img">
-              <MediaImg
-                thumb={current.original_url}
-                original={current.original_url}
-                title="双击定位到图库"
-                style={{ width: "100%", height: "auto", cursor: "pointer", userSelect: "none" }}
-                onDoubleClick={() => locateInGallery(current.id)}
-              />
-            </div>
+            <Dropdown trigger={["contextMenu"]} menu={{ items: detailMenu(current) }}>
+              <div
+                className={`pb-detail-frame${detailTap ? " is-tap" : ""}${detailOutline ? " is-on" : ""}`}
+                onMouseDown={() => setDetailTap(true)}
+                onMouseUp={() => window.setTimeout(() => setDetailTap(false), 140)}
+                onMouseLeave={() => setDetailTap(false)}
+                onDoubleClick={() => {
+                  setDetailOutline(true);
+                  locateInGallery(current.id);
+                }}
+              >
+                <div className="pb-detail-img">
+                  <MediaImg
+                    thumb={current.original_url}
+                    original={current.original_url}
+                    title="单击有按压反馈，双击描边并定位到图库，右键更多"
+                    style={{ width: "100%", height: "auto", cursor: "pointer", userSelect: "none" }}
+                  />
+                  {showSkeleton && hasPoseOverlay(current) ? <PoseOverlay landmarks={current.pose_landmarks} /> : null}
+                </div>
+              </div>
+            </Dropdown>
             <div className="pb-palette">
-              {current.palette.slice(0, 5).map((c) => (
-                <span
-                  key={c.hex}
-                  title={`${familyText(c.family)} ${Math.round(c.ratio * 100)}%`}
+              {current.palette.map((c) => (
+                <button
+                  key={`${c.hex}-${c.ratio}`}
+                  type="button"
+                  className="pb-palette-chip"
+                  data-label={c.hex}
+                  aria-label={`${c.hex}，右键复制`}
                   style={{ background: c.hex }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    void copyText(c.hex).then(
+                      () => message.success(`已复制 ${c.hex}`),
+                      () => message.error("复制失败")
+                    );
+                  }}
                 />
               ))}
             </div>
-            <div className="pb-hint">姿态：{poseStatusText(current.pose_status)}</div>
+            <div className="pb-hint">右键大图可提取色卡、导出、复制原图；双击描边并定位</div>
+            <div className="pb-pose-row">
+              <span className="pb-hint">姿态：{poseStatusText(current.pose_status)}</span>
+              <Tooltip title={hasPoseOverlay(current) ? "" : "这张图没有可用的姿态关键点"}>
+                <span>
+                  <Button
+                    size="small"
+                    type={showSkeleton ? "primary" : "default"}
+                    disabled={!hasPoseOverlay(current)}
+                    onClick={() => setShowSkeleton((on) => !on)}
+                  >
+                    {showSkeleton ? "隐藏骨架" : "显示骨架"}
+                  </Button>
+                </span>
+              </Tooltip>
+            </div>
             <div>
               <div className="pb-section-title">主色</div>
               <FamilyDropdown value={current.primary_family} onChange={(v) => patchColors(current.id, { primary_family: v })} />
@@ -689,6 +822,12 @@ export default function LibraryPage() {
           <Empty description="选择一张图" />
         )}
       </div>
+      <PaletteExtractModal
+        open={paletteOpen}
+        image={current || null}
+        onClose={() => setPaletteOpen(false)}
+        onApplied={cacheImage}
+      />
       <Modal title="加入哪块画板？" open={addBoardOpen} footer={null} onCancel={() => setAddBoardOpen(false)}>
         <Space direction="vertical" style={{ width: "100%" }}>
           {(boards.data || []).map((b) => (

@@ -1,12 +1,13 @@
 import { Layout, Menu, Button, Space, Typography, Dropdown, Modal, Upload, message } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NAV from "../nav";
 import { useHome, useImport, useJobs } from "../api/hooks";
 import { request, selectLocalFolder, selectLocalPaths } from "../api/client";
 import type { ImageItem } from "../types";
-import { APP_NAME, formatDate, formatDateTime } from "../i18n";
+import { formatDate, formatDateTime } from "../i18n";
 import MediaImg from "../components/MediaImg";
+import TitleBar from "../components/TitleBar";
 import { useFocusMode } from "../components/FocusMode";
 
 const { Header, Sider, Content } = Layout;
@@ -58,79 +59,80 @@ export default function AppLayout({
   const { focus } = useFocusMode();
   const isBoardCanvas = /^\/boards\/\d+/.test(loc.pathname);
 
+  useEffect(() => {
+    if (loc.pathname === "/boards" || /^\/boards\/\d+/.test(loc.pathname)) {
+      sessionStorage.setItem("lastBoardsPath", loc.pathname);
+    }
+  }, [loc.pathname]);
+
   return (
-    <Layout style={{ height: "100vh", overflow: "hidden" }}>
-      {focus ? null : (
-        <Sider theme="light" width={168} className="pb-sider" style={{ overflow: "auto" }}>
-          <div className="pb-brand">
-            <span className="pb-mark" />
-            {APP_NAME}
-          </div>
-          <Menu
-            selectedKeys={[selected]}
-            style={{ border: "none", padding: "0 4px" }}
-            items={NAV.map((n) => ({ key: n.key, label: n.label }))}
-            onClick={(e) => {
-              if (e.key === "/boards") {
-                const last = home.data?.last_board?.id || sessionStorage.getItem("lastBoardId");
-                nav(last ? `/boards/${last}` : "/boards");
-                return;
-              }
-              nav(e.key);
-            }}
-          />
-        </Sider>
-      )}
-      <Layout style={{ height: "100vh", overflow: "hidden", minHeight: 0, background: focus ? "#f4f6f8" : "#eef0f3" }}>
+    <div className="pb-shell">
+      <TitleBar compact={focus} />
+      <Layout className="pb-shell-body">
         {focus ? null : (
-          <Header className="pb-header" style={{ padding: "0 16px", display: "flex", alignItems: "center", gap: 10, flex: "none", height: 52, lineHeight: "52px" }}>
-            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-              {formatDate(new Date())}
-            </Typography.Text>
-            <Dropdown
-              menu={{
-                items: [
-                  { key: "files", label: "导入文件", onClick: () => doImport("files") },
-                  { key: "folder", label: "导入文件夹", onClick: () => doImport("folder") },
-                ],
+          <Sider theme="light" width={168} className="pb-sider" style={{ overflow: "auto" }}>
+            <Menu
+              selectedKeys={[selected]}
+              style={{ border: "none", padding: "10px 4px 12px" }}
+              items={NAV.map((n) => ({ key: n.key, label: n.label }))}
+              onClick={(e) => {
+                if (e.key === "/boards") {
+                  const lastPath = sessionStorage.getItem("lastBoardsPath");
+                  if (lastPath) {
+                    nav(lastPath);
+                    return;
+                  }
+                  const last = home.data?.last_board?.id || sessionStorage.getItem("lastBoardId");
+                  nav(last ? `/boards/${last}` : "/boards");
+                  return;
+                }
+                nav(e.key);
               }}
-            >
-              <Button type="primary" size="small">
-                导入
-              </Button>
-            </Dropdown>
-            <Button size="small" onClick={() => setPoseOpen(true)}>
-              姿态搜图
-            </Button>
-            <span className="pb-status">处理中 {jobs.data?.pending || 0}</span>
-            {jobs.data?.failed ? (
-              <Button type="link" size="small" onClick={() => nav("/library?failed=1")}>
-                失败 {jobs.data.failed}
-              </Button>
-            ) : null}
-            <span className="pb-status">
-              {saveStatus === "saving" ? "保存中" : saveStatus === "failed" ? "保存失败" : saveStatus === "saved" ? "已保存" : ""}
-            </span>
-            <span className="pb-status" style={{ marginLeft: "auto", color: overdue ? "#d4380d" : undefined }}>
-              {home.data?.last_backup_at ? `备份 ${formatDateTime(home.data.last_backup_at)}` : "尚未备份"}
-              {overdue ? "（超过 7 天）" : ""}
-            </span>
-          </Header>
+            />
+          </Sider>
         )}
-        <Content
-          className="pb-scroll"
-          style={{
-            margin: focus || isBoardCanvas ? 0 : 12,
-            background: focus ? "#f4f6f8" : isBoardCanvas ? "#e9ecf1" : "#fff",
-            padding: focus || isBoardCanvas ? 0 : 16,
-            overflow: focus ? "hidden" : "auto",
-            minHeight: 0,
-            flex: "1 1 0%",
-            borderRadius: focus || isBoardCanvas ? 0 : 12,
-          }}
-        >
-          <Outlet />
-        </Content>
+        <Layout style={{ height: "100%", overflow: "hidden", minHeight: 0 }} className={`pb-stage${focus ? " is-focus" : ""}`}>
+          {focus ? null : (
+            <Header className="pb-header">
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {formatDate(new Date())}
+              </Typography.Text>
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: "files", label: "导入文件", onClick: () => doImport("files") },
+                    { key: "folder", label: "导入文件夹", onClick: () => doImport("folder") },
+                  ],
+                }}
+              >
+                <Button type="primary" size="small">
+                  导入
+                </Button>
+              </Dropdown>
+              <Button size="small" onClick={() => setPoseOpen(true)}>
+                姿态搜图
+              </Button>
+              <span className="pb-status">处理中 {jobs.data?.pending || 0}</span>
+              {jobs.data?.failed ? (
+                <Button type="link" size="small" onClick={() => nav("/library?failed=1")}>
+                  失败 {jobs.data.failed}
+                </Button>
+              ) : null}
+              <span className="pb-status">
+                {saveStatus === "saving" ? "保存中" : saveStatus === "failed" ? "保存失败" : saveStatus === "saved" ? "已保存" : ""}
+              </span>
+              <span className="pb-status" style={{ marginLeft: "auto", color: overdue ? "#d4380d" : undefined }}>
+                {home.data?.last_backup_at ? `备份 ${formatDateTime(home.data.last_backup_at)}` : "尚未备份"}
+                {overdue ? "（超过 7 天）" : ""}
+              </span>
+            </Header>
+          )}
+          <Content
+            className={`pb-scroll pb-main${focus ? " is-focus" : ""}${isBoardCanvas ? " is-canvas" : ""}`}
+          >
+            <Outlet />
+          </Content>
+        </Layout>
       </Layout>
       <Modal title="姿态搜图" open={poseOpen} onCancel={() => setPoseOpen(false)} footer={null} width={720}>
         <Space direction="vertical" style={{ width: "100%" }}>
@@ -164,6 +166,6 @@ export default function AppLayout({
           </div>
         </Space>
       </Modal>
-    </Layout>
+    </div>
   );
 }

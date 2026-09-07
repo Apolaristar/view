@@ -62,6 +62,11 @@ type WindowBridge = {
   setMaximized?: (flag: boolean) => Promise<boolean>;
   setFocusChrome?: (flag: boolean) => Promise<boolean>;
   setFullScreen?: (flag: boolean) => Promise<boolean>;
+  windowMinimize?: () => Promise<boolean>;
+  windowMaximize?: () => Promise<boolean>;
+  windowClose?: () => Promise<boolean>;
+  windowIsMaximized?: () => Promise<boolean>;
+  onMaximizedChange?: (cb: (value: boolean) => void) => () => void;
 };
 
 function windowBridge(): WindowBridge {
@@ -95,4 +100,36 @@ export async function setFullScreen(flag: boolean): Promise<boolean> {
   const api = windowBridge();
   if (!api.setFullScreen) return flag;
   return Boolean(await api.setFullScreen(flag));
+}
+
+export function hasWindowControls() {
+  return Boolean(windowBridge().windowMinimize);
+}
+
+export async function windowMinimize() {
+  const api = windowBridge();
+  if (api.windowMinimize) await api.windowMinimize();
+}
+
+export async function windowToggleMax() {
+  const api = windowBridge();
+  if (api.windowMaximize) return Boolean(await api.windowMaximize());
+  return false;
+}
+
+export async function windowClose() {
+  const api = windowBridge();
+  if (api.windowClose) await api.windowClose();
+}
+
+export function subscribeMaximized(cb: (value: boolean) => void) {
+  const api = windowBridge();
+  if (api.onMaximizedChange) return api.onMaximizedChange(cb);
+  return () => undefined;
+}
+
+export async function windowIsMaximized() {
+  const api = windowBridge();
+  if (api.windowIsMaximized) return Boolean(await api.windowIsMaximized());
+  return false;
 }

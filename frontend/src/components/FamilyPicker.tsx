@@ -56,7 +56,7 @@ export function ColorDot({
         width: size + 8,
         height: size + 8,
         padding: 0,
-        border: selected ? "2px solid #3b6cff" : "2px solid transparent",
+        border: selected ? "2px solid var(--pb-accent)" : "2px solid transparent",
         borderRadius: "50%",
         background: "transparent",
         display: "inline-flex",

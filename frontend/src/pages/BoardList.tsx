@@ -55,14 +55,14 @@ export default function BoardListPage() {
           新建画板
         </Button>
       </div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+      <div className="pb-board-grid">
         {data.map((b) => (
           <Card
             key={b.id}
             className="pb-board-card"
             hoverable
             cover={<BoardPreview url={b.preview_url} />}
-            style={{ width: 236, overflow: "hidden" }}
+            style={{ width: 236 }}
             onClick={() => nav(`/boards/${b.id}`)}
             actions={[
               <a
@@ -94,8 +94,8 @@ export default function BoardListPage() {
               </a>,
             ]}
           >
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>{b.name}</div>
-            <div style={{ fontSize: 12, color: "#8a9099" }}>
+            <div className="pb-board-name">{b.name}</div>
+            <div className="pb-board-meta">
               {b.tray_count || b.item_count} 张 · {formatDateTime(b.updated_at)}
             </div>
           </Card>

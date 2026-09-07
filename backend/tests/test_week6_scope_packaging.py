@@ -40,10 +40,17 @@ def test_packaging_files_exist():
     main = (ROOT / "electron" / "main.js").read_text(encoding="utf-8")
     assert "taskkill" in main
     assert "pickPort" in main or "POSEBOARD_PORT" in main
-    installer = ROOT / "release" / "姿态图库 Setup 1.0.0.exe"
+    installer = ROOT / "release" / "姿态图库 Setup 1.0.1.exe"
+    installer_v101 = ROOT / "release" / "v1.0.1" / "姿态图库 Setup 1.0.1.exe"
     unpacked = ROOT / "release" / "win-unpacked" / "姿态图库.exe"
     old_installer = ROOT / "release" / "PoseBoard Setup 1.0.0.exe"
     old_unpacked = ROOT / "release" / "win-unpacked" / "PoseBoard.exe"
-    assert installer.is_file() or unpacked.is_file() or old_installer.is_file() or old_unpacked.is_file()
+    assert (
+        installer.is_file()
+        or installer_v101.is_file()
+        or unpacked.is_file()
+        or old_installer.is_file()
+        or old_unpacked.is_file()
+    )
     frontend_dist = ROOT / "frontend" / "dist" / "index.html"
     assert frontend_dist.is_file()

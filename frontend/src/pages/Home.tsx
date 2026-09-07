@@ -79,7 +79,7 @@ export default function HomePage() {
           ) : null}
         </div>
       )}
-      <Card title="最近导入" bordered={false} style={{ marginBottom: 12, background: "#f7f8fa" }}>
+      <Card className="pb-home-card" title="最近导入" bordered={false} style={{ marginBottom: 12 }}>
         {data.recent_images?.length ? (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {data.recent_images.map((img: any) => (
@@ -93,7 +93,7 @@ export default function HomePage() {
           <Empty description="还没有导入图片" />
         )}
       </Card>
-      <Card title="最近画板" bordered={false} style={{ background: "#f7f8fa" }}>
+      <Card className="pb-home-card" title="最近画板" bordered={false}>
         {data.recent_boards?.length ? (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {data.recent_boards.map((b: any) => (

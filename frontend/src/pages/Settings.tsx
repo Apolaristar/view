@@ -4,9 +4,11 @@ import { useSettings, useTags } from "../api/hooks";
 import { request } from "../api/client";
 import { formatDateTime } from "../i18n";
 import type { Tag } from "../types";
+import { THEMES, useUiTheme } from "../theme";
 
 export default function SettingsPage() {
   const { data } = useSettings();
+  const { theme, setTheme } = useUiTheme();
   const tags = useTags();
   const qc = useQueryClient();
   const categories = (tags.data || []).filter((t) => t.kind === "category");
@@ -60,9 +62,36 @@ export default function SettingsPage() {
       <div className="pb-page-head" style={{ marginBottom: 0 }}>
         <div>
           <div className="pb-page-title">设置</div>
-          <div className="pb-page-sub">标签结构、数据目录和备份</div>
+          <div className="pb-page-sub">界面风格、标签结构、数据目录和备份</div>
         </div>
       </div>
+      <Card title="界面风格">
+        <div className="pb-theme-grid">
+          {THEMES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`pb-theme-pick${theme === item.id ? " is-on" : ""}`}
+              onClick={() => setTheme(item.id)}
+            >
+              <div className={`pb-theme-mini is-${item.id}`} aria-hidden="true">
+                <div className="pb-theme-mini-bar">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div className="pb-theme-mini-body">
+                  <div className="pb-theme-mini-side" />
+                  <div className="pb-theme-mini-page" />
+                  <div className="pb-theme-mini-aside" />
+                </div>
+              </div>
+              <strong>{item.label}</strong>
+              <span>{item.blurb}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
       <Card
         title="标签结构"
         extra={
