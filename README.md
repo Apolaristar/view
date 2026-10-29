@@ -31,21 +31,12 @@
 | 画板 | 管理画板；点进去在画布上摆图 |
 | 设置 | 换外观、整理标签、备份和恢复 |
 
-首页
+截图在仓库的 `docs/screenshots/` 里，可直接打开查看：
 
-<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/home.png" alt="首页" width="900">
-
-图库
-
-<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/library.png" alt="图库" width="900">
-
-画板
-
-<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/canvas.png" alt="画板" width="900">
-
-设置
-
-<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/settings.png" alt="设置" width="900">
+- [首页](docs/screenshots/home.png)
+- [图库](docs/screenshots/library.png)
+- [画板](docs/screenshots/canvas.png)
+- [设置](docs/screenshots/settings.png)
 
 ## 常用操作
 
