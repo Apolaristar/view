@@ -31,6 +31,22 @@
 | 画板 | 管理画板；点进去在画布上摆图 |
 | 设置 | 换外观、整理标签、备份和恢复 |
 
+**首页**
+
+![首页](docs/screenshots/home.png)
+
+**图库**
+
+![图库](docs/screenshots/library.png)
+
+**画板**
+
+![画板](docs/screenshots/canvas.png)
+
+**设置**
+
+![设置](docs/screenshots/settings.png) |
+
 ## 常用操作
 
 **导入**  
