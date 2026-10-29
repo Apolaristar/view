@@ -33,19 +33,19 @@
 
 **首页**
 
-![首页](docs/screenshots/home.png)
+![首页](./docs/screenshots/home.png)
 
 **图库**
 
-![图库](docs/screenshots/library.png)
+![图库](./docs/screenshots/library.png)
 
 **画板**
 
-![画板](docs/screenshots/canvas.png)
+![画板](./docs/screenshots/canvas.png)
 
 **设置**
 
-![设置](docs/screenshots/settings.png) |
+![设置](./docs/screenshots/settings.png)
 
 ## 常用操作
 
