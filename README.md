@@ -31,21 +31,21 @@
 | 画板 | 管理画板；点进去在画布上摆图 |
 | 设置 | 换外观、整理标签、备份和恢复 |
 
-**首页**
+首页
 
-![首页](./docs/screenshots/home.png)
+<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/home.png" alt="首页" width="900">
 
-**图库**
+图库
 
-![图库](./docs/screenshots/library.png)
+<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/library.png" alt="图库" width="900">
 
-**画板**
+画板
 
-![画板](./docs/screenshots/canvas.png)
+<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/canvas.png" alt="画板" width="900">
 
-**设置**
+设置
 
-![设置](./docs/screenshots/settings.png)
+<img src="https://github.com/Apolaristar/view/raw/main/docs/screenshots/settings.png" alt="设置" width="900">
 
 ## 常用操作
 
