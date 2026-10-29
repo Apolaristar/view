@@ -1,25 +1,20 @@
 import { Button, Card, Empty, Space } from "antd";
 import { useNavigate } from "react-router-dom";
-import { useHome, useImport } from "../api/hooks";
-import { selectLocalFolder, selectLocalPaths } from "../api/client";
+import { useHome } from "../api/hooks";
 import { poseStatusText } from "../i18n";
 import MediaImg from "../components/MediaImg";
 import { useBoardCreate } from "../components/BoardCreate";
+import { useImportFlow } from "../components/ImportFlow";
 import BoardPreview from "../components/BoardPreview";
 
 export default function HomePage() {
   const { data, isLoading } = useHome();
   const nav = useNavigate();
-  const importer = useImport();
+  const { importPictures } = useImportFlow();
   const { openCreateBoard } = useBoardCreate();
 
   if (isLoading) return <div>加载中…</div>;
   if (!data) return <Empty description="无法加载首页" />;
-
-  async function importNow() {
-    const paths = (await selectLocalPaths()) || (await selectLocalFolder());
-    if (paths.length) await importer.mutateAsync(paths);
-  }
 
   return (
     <div>
@@ -41,7 +36,7 @@ export default function HomePage() {
               新建画板
             </Button>
           )}
-          <Button onClick={importNow}>导入图片</Button>
+          <Button onClick={() => void importPictures()}>导入图片</Button>
           <Button onClick={() => nav("/library")}>打开图库</Button>
         </Space>
       </div>

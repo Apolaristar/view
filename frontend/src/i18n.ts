@@ -1,4 +1,4 @@
-import { FAMILY_LABEL } from "./types";
+import { FAMILY_LABEL, BODY_FRAMING_LABEL, HEAD_YAW_LABEL } from "./types";
 
 export const APP_NAME = "姿态图库";
 
@@ -28,6 +28,16 @@ export function colorStatusText(status?: string | null): string {
 export function familyText(family?: string | null): string {
   if (!family) return "";
   return FAMILY_LABEL[family] || family;
+}
+
+export function framingText(framing?: string | null): string {
+  if (!framing || framing === "unknown") return "未识别";
+  return BODY_FRAMING_LABEL[framing] || framing;
+}
+
+export function headYawText(yaw?: string | null): string {
+  if (!yaw || yaw === "unknown") return "未识别";
+  return HEAD_YAW_LABEL[yaw] || yaw;
 }
 
 export function formatDateTime(value?: string | null): string {

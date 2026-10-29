@@ -5,4 +5,11 @@ const NAV = [
   { key: "/settings", label: "设置" },
 ];
 
+export function boardsReturnPath(sessionPath?: string | null): string {
+  if (sessionPath === "/boards" || (sessionPath && /^\/boards\/\d+$/.test(sessionPath))) {
+    return sessionPath;
+  }
+  return "/boards";
+}
+
 export default NAV;

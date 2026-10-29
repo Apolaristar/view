@@ -90,8 +90,29 @@ export type ImageItem = {
   thumbnail_url: string;
   original_url: string;
   local_path?: string;
-  pose_landmarks: { id: number; x: number; y: number; visibility: number }[];
+  in_library?: boolean;
+    pose_landmarks: { id: number; x: number; y: number; visibility: number; person?: number }[];
+    pose_people?: number;
+  body_framing?: string | null;
+  head_yaw?: string | null;
   tags: Tag[];
+};
+
+export const BODY_FRAMINGS = ["head", "bust", "half", "full"] as const;
+
+export const BODY_FRAMING_LABEL: Record<string, string> = {
+  head: "大头",
+  bust: "胸像",
+  half: "半身",
+  full: "全身",
+};
+
+export const HEAD_YAWS = ["front", "three_quarter", "profile"] as const;
+
+export const HEAD_YAW_LABEL: Record<string, string> = {
+  front: "正脸",
+  three_quarter: "半侧",
+  profile: "全侧",
 };
 
 export type BoardItem = {
@@ -108,6 +129,10 @@ export type BoardItem = {
   crop_y?: number;
   crop_w?: number;
   crop_h?: number;
+  flipped?: boolean;
+  grayscale?: boolean;
+  locked?: boolean;
+  group_id?: string | null;
   image: ImageItem;
 };
 
@@ -117,6 +142,7 @@ export type Board = {
   pan_x: number;
   pan_y: number;
   zoom: number;
+  grayscale?: boolean;
   updated_at: string;
   item_count: number;
   tray_count?: number;

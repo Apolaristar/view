@@ -6,7 +6,8 @@ from core.backup import create_backup, list_backups, restore_backup
 from core.database import connect, get_setting, set_setting
 from core.home import home_summary
 from core.paths import get_data_root
-from models.schemas import BackupCreate, SettingsPut
+from core.queue import enqueue_library
+from models.schemas import BackupCreate, LibraryReprocessRequest, SettingsPut
 
 router = APIRouter()
 
@@ -31,6 +32,17 @@ def settings_get():
 @router.get("/settings/data-path")
 def settings_data_path():
     return {"code": 0, "data": {"path": str(get_data_root())}, "msg": ""}
+
+
+@router.post("/library/reprocess")
+def library_reprocess(body: LibraryReprocessRequest | None = None):
+    from core.images import refresh_library_framing
+
+    pose = True if body is None else body.pose
+    color = False if body is None else body.color
+    if pose:
+        refresh_library_framing()
+    return {"code": 0, "data": enqueue_library(pose=pose, color=color), "msg": ""}
 
 
 @router.put("/settings")

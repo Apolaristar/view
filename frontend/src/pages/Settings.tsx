@@ -1,14 +1,16 @@
-import { Button, Card, List, Space, Typography, message } from "antd";
+import { Button, Card, List, Radio, Space, Switch, Typography, message } from "antd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings, useTags } from "../api/hooks";
 import { request } from "../api/client";
 import { formatDateTime } from "../i18n";
 import type { Tag } from "../types";
 import { THEMES, useUiTheme } from "../theme";
+import { useUiPrefs } from "../uiPrefs";
 
 export default function SettingsPage() {
   const { data } = useSettings();
   const { theme, setTheme } = useUiTheme();
+  const { filterPinned, filterLayout, setFilterPinned, setFilterLayout } = useUiPrefs();
   const tags = useTags();
   const qc = useQueryClient();
   const categories = (tags.data || []).filter((t) => t.kind === "category");
@@ -62,7 +64,7 @@ export default function SettingsPage() {
       <div className="pb-page-head" style={{ marginBottom: 0 }}>
         <div>
           <div className="pb-page-title">设置</div>
-          <div className="pb-page-sub">界面风格、标签结构、数据目录和备份</div>
+          <div className="pb-page-sub">界面风格、筛选栏、标签结构和备份</div>
         </div>
       </div>
       <Card title="界面风格">
@@ -91,6 +93,33 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
+      </Card>
+      <Card title="个性化">
+        <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          <div className="pb-pref-row">
+            <div>
+              <div className="pb-pref-label">固定筛选条件栏</div>
+              <div className="pb-hint">关掉后，鼠标移到图库边缘才会拉开；移开就收起</div>
+            </div>
+            <Switch checked={filterPinned} checkedChildren="固定" unCheckedChildren="移入" onChange={setFilterPinned} />
+          </div>
+          <div className="pb-pref-row">
+            <div>
+              <div className="pb-pref-label">筛选栏布局</div>
+              <div className="pb-hint">竖排在图库左侧；横排铺在图库上方</div>
+            </div>
+            <Radio.Group
+              value={filterLayout}
+              optionType="button"
+              buttonStyle="solid"
+              options={[
+                { value: "vertical", label: "竖排" },
+                { value: "horizontal", label: "横排" },
+              ]}
+              onChange={(e) => setFilterLayout(e.target.value)}
+            />
+          </div>
+        </Space>
       </Card>
       <Card
         title="标签结构"

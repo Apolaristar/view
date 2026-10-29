@@ -4,20 +4,24 @@ from datetime import datetime, timezone
 
 from core.boards import list_boards
 from core.database import connect, get_setting
-from core.images import list_images, serialize_image, tags_for_images
+from core.images import list_images, serialize_image, sync_inferred_labels, tags_for_images
 from core.queue import jobs_summary
 
 
 def home_summary() -> dict:
+    sync_inferred_labels()
     conn = connect()
     try:
-        image_count = conn.execute("SELECT COUNT(*) AS c FROM images").fetchone()["c"]
+        image_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM images WHERE COALESCE(in_library, 1) != 0"
+        ).fetchone()["c"]
         tag_count = conn.execute("SELECT COUNT(*) AS c FROM tags").fetchone()["c"]
         board_count = conn.execute("SELECT COUNT(*) AS c FROM boards").fetchone()["c"]
         failed_count = conn.execute(
             """
             SELECT COUNT(*) AS c FROM images
-            WHERE pose_status = 'failed' OR color_status = 'failed'
+            WHERE COALESCE(in_library, 1) != 0
+              AND (pose_status = 'failed' OR color_status = 'failed')
             """
         ).fetchone()["c"]
         last_board_id = get_setting(conn, "last_opened_board_id", "")
@@ -36,7 +40,7 @@ def home_summary() -> dict:
                     "updated_at": row["updated_at"],
                 }
         recent_rows = conn.execute(
-            "SELECT * FROM images ORDER BY created_at DESC, id DESC LIMIT 12"
+            "SELECT * FROM images WHERE COALESCE(in_library, 1) != 0 ORDER BY created_at DESC, id DESC LIMIT 12"
         ).fetchall()
         ids = [r["id"] for r in recent_rows]
         tag_map = tags_for_images(conn, ids)

@@ -13,6 +13,8 @@ class ApiResponse(BaseModel):
 
 class ImportRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)
+    in_library: bool = True
+    tag_ids: list[int] = Field(default_factory=list)
 
 
 class ImagePatch(BaseModel):
@@ -21,6 +23,8 @@ class ImagePatch(BaseModel):
     primary_family: Optional[str] = None
     secondary_family: Optional[str] = None
     extra_families: Optional[list[str]] = None
+    body_framing: Optional[str] = None
+    head_yaw: Optional[str] = None
 
 
 class TagCreate(BaseModel):
@@ -56,6 +60,11 @@ class ReprocessRequest(BaseModel):
     color: bool = True
 
 
+class LibraryReprocessRequest(BaseModel):
+    pose: bool = True
+    color: bool = False
+
+
 class PaletteExtractRequest(BaseModel):
     k: int = Field(default=8, ge=2, le=16)
     apply: bool = False
@@ -89,12 +98,17 @@ class BoardItemIn(BaseModel):
     crop_y: float = 0
     crop_w: float = 1
     crop_h: float = 1
+    flipped: bool = False
+    grayscale: bool = False
+    locked: bool = False
+    group_id: Optional[str] = None
 
 
 class BoardLayout(BaseModel):
     pan_x: float
     pan_y: float
     zoom: float
+    grayscale: Optional[bool] = None
     items: list[BoardItemIn] = Field(default_factory=list)
 
 
@@ -122,3 +136,5 @@ class SettingsPut(BaseModel):
     last_opened_board_id: Optional[str] = None
     backup_remind_days: Optional[str] = None
     ui_theme: Optional[Literal["atelier", "night", "paper"]] = None
+    filter_pin: Optional[Literal["0", "1"]] = None
+    filter_layout: Optional[Literal["vertical", "horizontal"]] = None

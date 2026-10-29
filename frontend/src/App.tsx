@@ -15,7 +15,10 @@ import BoardCanvasPage from "./pages/BoardCanvas";
 import SettingsPage from "./pages/Settings";
 import { BoardCreateProvider } from "./components/BoardCreate";
 import { FocusModeProvider } from "./components/FocusMode";
+import { ImportFlowProvider } from "./components/ImportFlow";
+import { PoseSearchProvider } from "./components/PoseSearch";
 import { ThemeProvider, antdThemeFor, useUiTheme } from "./theme";
+import { UiPrefsProvider } from "./uiPrefs";
 
 const queryClient = new QueryClient();
 
@@ -31,18 +34,22 @@ function ThemedRoutes({
     <ConfigProvider locale={zhCN} theme={antdThemeFor(theme)}>
       <HashRouter>
         <BoardCreateProvider>
-          <FocusModeProvider>
-            <Routes>
-              <Route element={<AppLayout saveStatus={saveStatus} />}>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/library" element={<LibraryPage />} />
-                <Route path="/boards" element={<BoardListPage />} />
-                <Route path="/boards/:id" element={<BoardCanvasPage onSaveStatus={onSaveStatus} />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
-          </FocusModeProvider>
+          <ImportFlowProvider>
+            <PoseSearchProvider>
+              <FocusModeProvider>
+                <Routes>
+                  <Route element={<AppLayout saveStatus={saveStatus} />}>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/library" element={<LibraryPage />} />
+                    <Route path="/boards" element={<BoardListPage />} />
+                    <Route path="/boards/:id" element={<BoardCanvasPage onSaveStatus={onSaveStatus} />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Route>
+                </Routes>
+              </FocusModeProvider>
+            </PoseSearchProvider>
+          </ImportFlowProvider>
         </BoardCreateProvider>
       </HashRouter>
     </ConfigProvider>
@@ -54,7 +61,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <ThemedRoutes saveStatus={saveStatus} onSaveStatus={setSaveStatus} />
+        <UiPrefsProvider>
+          <ThemedRoutes saveStatus={saveStatus} onSaveStatus={setSaveStatus} />
+        </UiPrefsProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

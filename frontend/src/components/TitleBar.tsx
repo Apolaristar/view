@@ -6,6 +6,7 @@ import {
   windowClose,
   windowIsMaximized,
   windowMinimize,
+  windowToggleFloatHalf,
   windowToggleMax,
 } from "../api/client";
 
@@ -56,7 +57,9 @@ export default function TitleBar({ compact }: { compact?: boolean }) {
     <div
       className={`pb-titlebar${compact ? " is-compact" : ""}`}
       onDoubleClick={() => {
-        if (native) void windowToggleMax().then(setMaximized);
+        if (!native) return;
+        if (compact) void windowToggleFloatHalf();
+        else void windowToggleMax().then(setMaximized);
       }}
     >
       <div className="pb-title-brand">
@@ -72,10 +75,14 @@ export default function TitleBar({ compact }: { compact?: boolean }) {
           <button
             type="button"
             className="pb-win-btn"
-            aria-label={maximized ? "还原" : "最大化"}
-            onClick={() => void windowToggleMax().then(setMaximized)}
+            aria-label={compact ? "贴顶半屏" : maximized ? "还原" : "最大化"}
+            title={compact ? "贴顶半屏 / 还原小窗" : undefined}
+            onClick={() => {
+              if (compact) void windowToggleFloatHalf();
+              else void windowToggleMax().then(setMaximized);
+            }}
           >
-            {maximized ? <IconRestore /> : <IconMax />}
+            {maximized && !compact ? <IconRestore /> : <IconMax />}
           </button>
           <button type="button" className="pb-win-btn is-close" aria-label="关闭" onClick={() => void windowClose()}>
             <IconClose />

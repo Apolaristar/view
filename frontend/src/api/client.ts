@@ -56,6 +56,8 @@ export async function selectLocalFolder(): Promise<string[]> {
   return w.poseBoard.selectFolder();
 }
 
+type OverlayState = { locked?: boolean; opacity?: number; clickThrough?: boolean };
+
 type WindowBridge = {
   setAlwaysOnTop?: (flag: boolean) => Promise<boolean>;
   setMenuVisible?: (visible: boolean) => Promise<boolean>;
@@ -66,7 +68,20 @@ type WindowBridge = {
   windowMaximize?: () => Promise<boolean>;
   windowClose?: () => Promise<boolean>;
   windowIsMaximized?: () => Promise<boolean>;
+  windowEnterFloat?: () => Promise<boolean | OverlayState>;
+  windowLeaveFloat?: () => Promise<boolean>;
+  windowToggleFloatHalf?: () => Promise<boolean>;
+  windowLockPosition?: (flag: boolean) => Promise<boolean>;
+  windowSetOpacity?: (value: number) => Promise<number>;
+  windowSetClickThrough?: (flag: boolean) => Promise<boolean>;
+  windowToggleTools?: () => Promise<boolean>;
+  windowSetTools?: (flag: boolean) => Promise<boolean>;
+  windowDragBegin?: () => Promise<boolean>;
+  windowDragEnd?: () => Promise<boolean>;
   onMaximizedChange?: (cb: (value: boolean) => void) => () => void;
+  onOverlayChange?: (cb: (value: OverlayState) => void) => () => void;
+  onSoloStep?: (cb: (delta: number) => void) => () => void;
+  onToolsChange?: (cb: (open: boolean) => void) => () => void;
 };
 
 function windowBridge(): WindowBridge {
@@ -132,4 +147,81 @@ export async function windowIsMaximized() {
   const api = windowBridge();
   if (api.windowIsMaximized) return Boolean(await api.windowIsMaximized());
   return false;
+}
+
+export async function windowEnterFloat() {
+  const api = windowBridge();
+  if (api.windowEnterFloat) return Boolean(await api.windowEnterFloat());
+  return false;
+}
+
+export async function windowLeaveFloat() {
+  const api = windowBridge();
+  if (api.windowLeaveFloat) return Boolean(await api.windowLeaveFloat());
+  return false;
+}
+
+export async function windowToggleFloatHalf() {
+  const api = windowBridge();
+  if (api.windowToggleFloatHalf) return Boolean(await api.windowToggleFloatHalf());
+  return false;
+}
+
+export async function windowLockPosition(flag: boolean) {
+  const api = windowBridge();
+  if (api.windowLockPosition) return Boolean(await api.windowLockPosition(flag));
+  return flag;
+}
+
+export async function windowSetOpacity(value: number) {
+  const api = windowBridge();
+  if (api.windowSetOpacity) return Number(await api.windowSetOpacity(value));
+  return value;
+}
+
+export async function windowSetClickThrough(flag: boolean) {
+  const api = windowBridge();
+  if (api.windowSetClickThrough) return Boolean(await api.windowSetClickThrough(flag));
+  return flag;
+}
+
+export function subscribeOverlay(cb: (value: OverlayState) => void) {
+  const api = windowBridge();
+  if (api.onOverlayChange) return api.onOverlayChange(cb);
+  return () => undefined;
+}
+
+export function subscribeSoloStep(cb: (delta: number) => void) {
+  const api = windowBridge();
+  if (api.onSoloStep) return api.onSoloStep(cb);
+  return () => undefined;
+}
+
+export async function windowToggleTools() {
+  const api = windowBridge();
+  if (api.windowToggleTools) return Boolean(await api.windowToggleTools());
+  return null;
+}
+
+export async function windowSetTools(flag: boolean) {
+  const api = windowBridge();
+  if (api.windowSetTools) return Boolean(await api.windowSetTools(flag));
+  return flag;
+}
+
+export async function windowDragBegin() {
+  const api = windowBridge();
+  if (api.windowDragBegin) return Boolean(await api.windowDragBegin());
+  return false;
+}
+
+export async function windowDragEnd() {
+  const api = windowBridge();
+  if (api.windowDragEnd) await api.windowDragEnd();
+}
+
+export function subscribeTools(cb: (open: boolean) => void) {
+  const api = windowBridge();
+  if (api.onToolsChange) return api.onToolsChange(cb);
+  return () => undefined;
 }

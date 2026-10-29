@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS images (
   width INTEGER,
   height INTEGER,
   camera_angle TEXT DEFAULT 'unknown',
+  body_framing TEXT NOT NULL DEFAULT 'unknown',
+  body_framing_manual INTEGER NOT NULL DEFAULT 0,
+  head_yaw TEXT NOT NULL DEFAULT 'unknown',
+  head_yaw_manual INTEGER NOT NULL DEFAULT 0,
   pose_landmarks TEXT,
   pose_status TEXT NOT NULL DEFAULT 'pending',
   color_status TEXT NOT NULL DEFAULT 'pending',
@@ -26,6 +30,7 @@ CREATE TABLE IF NOT EXISTS images (
   extra_families TEXT,
   color_manual INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
+  in_library INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
 
@@ -51,6 +56,7 @@ CREATE TABLE IF NOT EXISTS boards (
   pan_x REAL NOT NULL DEFAULT 0,
   pan_y REAL NOT NULL DEFAULT 0,
   zoom REAL NOT NULL DEFAULT 1,
+  grayscale INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL
 );
 
@@ -67,7 +73,11 @@ CREATE TABLE IF NOT EXISTS board_items (
   crop_x REAL NOT NULL DEFAULT 0,
   crop_y REAL NOT NULL DEFAULT 0,
   crop_w REAL NOT NULL DEFAULT 1,
-  crop_h REAL NOT NULL DEFAULT 1
+  crop_h REAL NOT NULL DEFAULT 1,
+  flipped INTEGER NOT NULL DEFAULT 0,
+  grayscale INTEGER NOT NULL DEFAULT 0,
+  locked INTEGER NOT NULL DEFAULT 0,
+  group_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS board_tray (
@@ -108,6 +118,8 @@ DEFAULT_SETTINGS = {
     "backup_remind_days": "7",
     "color_mode": "full",
     "ui_theme": "atelier",
+    "filter_pin": "1",
+    "filter_layout": "vertical",
 }
 
 
@@ -150,10 +162,17 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         "crop_y": "REAL NOT NULL DEFAULT 0",
         "crop_w": "REAL NOT NULL DEFAULT 1",
         "crop_h": "REAL NOT NULL DEFAULT 1",
+        "flipped": "INTEGER NOT NULL DEFAULT 0",
+        "grayscale": "INTEGER NOT NULL DEFAULT 0",
+        "locked": "INTEGER NOT NULL DEFAULT 0",
+        "group_id": "TEXT",
     }
     for name, decl in extras.items():
         if name not in item_cols:
             conn.execute(f"ALTER TABLE board_items ADD COLUMN {name} {decl}")
+    board_cols = _table_columns(conn, "boards")
+    if "grayscale" not in board_cols:
+        conn.execute("ALTER TABLE boards ADD COLUMN grayscale INTEGER NOT NULL DEFAULT 0")
     image_cols = _table_columns(conn, "images")
     if "secondary_family" not in image_cols:
         conn.execute("ALTER TABLE images ADD COLUMN secondary_family TEXT")
@@ -161,6 +180,58 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE images ADD COLUMN extra_families TEXT")
     if "color_manual" not in image_cols:
         conn.execute("ALTER TABLE images ADD COLUMN color_manual INTEGER NOT NULL DEFAULT 0")
+    if "in_library" not in image_cols:
+        conn.execute("ALTER TABLE images ADD COLUMN in_library INTEGER NOT NULL DEFAULT 1")
+    if "body_framing" not in image_cols:
+        conn.execute("ALTER TABLE images ADD COLUMN body_framing TEXT NOT NULL DEFAULT 'unknown'")
+    if "body_framing_manual" not in image_cols:
+        conn.execute("ALTER TABLE images ADD COLUMN body_framing_manual INTEGER NOT NULL DEFAULT 0")
+    if "head_yaw" not in image_cols:
+        conn.execute("ALTER TABLE images ADD COLUMN head_yaw TEXT NOT NULL DEFAULT 'unknown'")
+    if "head_yaw_manual" not in image_cols:
+        conn.execute("ALTER TABLE images ADD COLUMN head_yaw_manual INTEGER NOT NULL DEFAULT 0")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_images_framing ON images(body_framing)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_images_head_yaw ON images(head_yaw)")
+
+
+def backfill_body_framing(conn: sqlite3.Connection) -> None:
+    cols = _table_columns(conn, "images")
+    if "body_framing" not in cols:
+        return
+    from core.pose_extractor import infer_body_framing, parse_landmarks
+
+    rows = conn.execute(
+        """
+        SELECT id, pose_status, pose_landmarks FROM images
+        WHERE COALESCE(body_framing_manual, 0) = 0
+          AND COALESCE(body_framing, 'unknown') = 'unknown'
+          AND pose_status = 'ok'
+          AND pose_landmarks IS NOT NULL
+        """
+    ).fetchall()
+    for row in rows:
+        framing = infer_body_framing(parse_landmarks(row["pose_landmarks"]))
+        if framing != "unknown":
+            conn.execute("UPDATE images SET body_framing = ? WHERE id = ?", (framing, int(row["id"])))
+
+
+def backfill_head_yaw(conn: sqlite3.Connection) -> None:
+    cols = _table_columns(conn, "images")
+    if "head_yaw" not in cols:
+        return
+    from core.pose_extractor import infer_head_yaw, parse_landmarks
+
+    rows = conn.execute(
+        """
+        SELECT id, pose_status, pose_landmarks, COALESCE(head_yaw, 'unknown') AS head_yaw FROM images
+        WHERE COALESCE(head_yaw_manual, 0) = 0
+          AND pose_landmarks IS NOT NULL
+        """
+    ).fetchall()
+    for row in rows:
+        yaw = infer_head_yaw(parse_landmarks(row["pose_landmarks"]))
+        if yaw != (row["head_yaw"] or "unknown"):
+            conn.execute("UPDATE images SET head_yaw = ? WHERE id = ?", (yaw, int(row["id"])))
 
 
 DEFAULT_CATEGORIES = ("人物", "场景", "道具", "其他")
@@ -210,6 +281,8 @@ def init_db() -> None:
     try:
         conn.executescript(SCHEMA)
         migrate_schema(conn)
+        backfill_body_framing(conn)
+        backfill_head_yaw(conn)
         seed_default_taxonomy(conn)
         for key, value in DEFAULT_SETTINGS.items():
             conn.execute(

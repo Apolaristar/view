@@ -1,26 +1,74 @@
+# Dependencies
 .venv/
 node_modules/
+frontend/node_modules/
+tools/
+
+# Build / pack output (too large for GitHub)
 dist/
 build/
 release/
-__pycache__/
-*.pyc
-.pytest_cache/
-.mypy_cache/
+release-pack-tmp/
 frontend/dist/
 frontend/coverage/
-*.spec.bak
-.DS_Store
-Thumbs.db
-*.egg-info/
 backend/build/
 backend/dist/
-frontend/node_modules/
-frontend/tsconfig.tsbuildinfo
-backend/tmp_green.png
-tools/
+*.asar
+*.exe
+*.blockmap
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+backend/tmp_green.png
+*.spec.bak
+
+# Local app data / ML models (never commit a real library)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.task
+*.tflite
+
+# Logs / env / editor
 *.log
+*.local
+.env
+.env.*
 .idea/
 .vscode/
+.cursor/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
 
+# Internal docs, tests, local launchers (keep on disk, do not publish)
+PRD.md
+开发计划.md
+怎么看这个项目.md
+画板优化.md
+v1.0.2修复.md
+*.bat
+/main.js
+scripts/
+testdata/
+backend/tests/
+backend/pytest.ini
+backend/scripts_generate_testdata.py
+backend/pyinstaller.spec
+electron/builder.yml
+*.test.ts
+*.test.tsx
+*.test.js
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini

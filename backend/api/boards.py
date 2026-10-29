@@ -70,7 +70,7 @@ def boards_delete(board_id: int):
 @router.put("/boards/{board_id}/layout")
 def boards_layout(board_id: int, body: BoardLayout):
     items = [item.model_dump() for item in body.items]
-    board = save_layout(board_id, body.pan_x, body.pan_y, body.zoom, items)
+    board = save_layout(board_id, body.pan_x, body.pan_y, body.zoom, items, grayscale=body.grayscale)
     if board is None:
         raise HTTPException(status_code=404, detail="画板不存在")
     return {"code": 0, "data": board, "msg": ""}

@@ -134,7 +134,9 @@ export function fitCards(
   }
   const bw = Math.max(1, maxX - minX);
   const bh = Math.max(1, maxY - minY);
-  const zoom = Math.max(0.2, Math.min(2, Math.min((view.w - pad * 2) / bw, (view.h - pad * 2) / bh)));
+  const availW = Math.max(1, view.w - pad * 2);
+  const availH = Math.max(1, view.h - pad * 2);
+  const zoom = Math.min(1, availW / bw, availH / bh);
   return {
     zoom,
     pan: {

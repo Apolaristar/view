@@ -49,7 +49,7 @@ export function useBoard(id?: string) {
 export function useJobs() {
   return useQuery({
     queryKey: ["jobs"],
-    queryFn: () => request<{ pending: number; failed: number }>("/api/v1/jobs/summary"),
+    queryFn: () => request<{ pending: number; failed: number; queued?: number }>("/api/v1/jobs/summary"),
     refetchInterval: 2000,
   });
 }
@@ -61,16 +61,21 @@ export function useSettings() {
 export function useImport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (paths: string[]) =>
+    mutationFn: (body: { paths: string[]; tag_ids?: number[]; in_library?: boolean }) =>
       request("/api/v1/images/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paths }),
+        body: JSON.stringify({
+          paths: body.paths,
+          tag_ids: body.tag_ids || [],
+          in_library: body.in_library !== false,
+        }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["images"] });
       qc.invalidateQueries({ queryKey: ["home"] });
       qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
     },
   });
 }

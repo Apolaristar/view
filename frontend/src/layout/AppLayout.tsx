@@ -1,14 +1,15 @@
-import { Layout, Menu, Button, Space, Typography, Dropdown, Modal, Upload, message } from "antd";
+import { Layout, Menu, Button, Typography, Dropdown, message } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import NAV from "../nav";
-import { useHome, useImport, useJobs } from "../api/hooks";
-import { request, selectLocalFolder, selectLocalPaths } from "../api/client";
-import type { ImageItem } from "../types";
+import { useQueryClient } from "@tanstack/react-query";
+import NAV, { boardsReturnPath } from "../nav";
+import { useHome, useJobs } from "../api/hooks";
+import { request } from "../api/client";
 import { formatDate, formatDateTime } from "../i18n";
-import MediaImg from "../components/MediaImg";
 import TitleBar from "../components/TitleBar";
 import { useFocusMode } from "../components/FocusMode";
+import { useImportFlow } from "../components/ImportFlow";
+import { usePoseSearch } from "../components/PoseSearch";
 
 const { Header, Sider, Content } = Layout;
 
@@ -19,45 +20,43 @@ export default function AppLayout({
 }) {
   const loc = useLocation();
   const nav = useNavigate();
+  const qc = useQueryClient();
   const jobs = useJobs();
   const home = useHome();
-  const importer = useImport();
-  const [poseOpen, setPoseOpen] = useState(false);
-  const [poseItems, setPoseItems] = useState<ImageItem[] | { id: number; thumbnail_path?: string; distance: number }[]>([]);
-  const [poseMsg, setPoseMsg] = useState("");
+  const { importFiles, importFolder, importWithTags } = useImportFlow();
+  const { openSearch } = usePoseSearch();
+  const [reprocessingAll, setReprocessingAll] = useState(false);
 
   const selected = NAV.find((n) => loc.pathname === n.key || (n.key !== "/" && loc.pathname.startsWith(n.key)))?.key || "/";
-
-  async function doImport(kind: "files" | "folder") {
-    const paths = kind === "files" ? await selectLocalPaths() : await selectLocalFolder();
-    if (!paths.length) {
-      message.info("请在桌面应用中选择文件，或确认已通过 Electron 启动");
-      return;
-    }
-    const result: any = await importer.mutateAsync(paths);
-    message.success(`导入 ${result.imported_count}，跳过 ${result.skipped_count}`);
-  }
-
-  async function searchPoseFile(file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const data = await request<{ items: any[]; total: number; empty?: boolean }>("/api/v1/search/by-pose", {
-        method: "POST",
-        body: form,
-      });
-      setPoseMsg("");
-      setPoseItems(data.items || []);
-      if (!data.items?.length) setPoseMsg(data.empty ? "图库为空" : "没有结果");
-    } catch (err: any) {
-      setPoseItems([]);
-      setPoseMsg(err.message || "检测不到人体");
-    }
-  }
 
   const overdue = home.data?.backup_overdue;
   const { focus } = useFocusMode();
   const isBoardCanvas = /^\/boards\/\d+/.test(loc.pathname);
+
+  async function reprocessLibrary() {
+    if (reprocessingAll) return;
+    setReprocessingAll(true);
+    try {
+      const data = await request<{ queued: number }>("/api/v1/library/reprocess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pose: true, color: false }),
+      });
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["images"] });
+      qc.invalidateQueries({ queryKey: ["image"] });
+      message.success(data.queued ? `已开始重新识别 ${data.queued} 张` : "图库是空的");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "重新识别失败";
+      message.error(
+        /405|404|Method Not Allowed|Not Found/i.test(msg)
+          ? "当前后台还是旧版。请退出托盘图标后，重新运行「快速开发.bat」"
+          : msg,
+      );
+    } finally {
+      setReprocessingAll(false);
+    }
+  }
 
   useEffect(() => {
     if (loc.pathname === "/boards" || /^\/boards\/\d+/.test(loc.pathname)) {
@@ -67,7 +66,7 @@ export default function AppLayout({
 
   return (
     <div className="pb-shell">
-      <TitleBar compact={focus} />
+      {focus ? null : <TitleBar />}
       <Layout className="pb-shell-body">
         {focus ? null : (
           <Sider theme="light" width={168} className="pb-sider" style={{ overflow: "auto" }}>
@@ -77,13 +76,7 @@ export default function AppLayout({
               items={NAV.map((n) => ({ key: n.key, label: n.label }))}
               onClick={(e) => {
                 if (e.key === "/boards") {
-                  const lastPath = sessionStorage.getItem("lastBoardsPath");
-                  if (lastPath) {
-                    nav(lastPath);
-                    return;
-                  }
-                  const last = home.data?.last_board?.id || sessionStorage.getItem("lastBoardId");
-                  nav(last ? `/boards/${last}` : "/boards");
+                  nav(boardsReturnPath(sessionStorage.getItem("lastBoardsPath")));
                   return;
                 }
                 nav(e.key);
@@ -100,8 +93,9 @@ export default function AppLayout({
               <Dropdown
                 menu={{
                   items: [
-                    { key: "files", label: "导入文件", onClick: () => doImport("files") },
-                    { key: "folder", label: "导入文件夹", onClick: () => doImport("folder") },
+                    { key: "files", label: "导入文件", onClick: () => void importFiles() },
+                    { key: "folder", label: "导入文件夹", onClick: () => void importFolder() },
+                    { key: "tagged", label: "先选标签再导入", onClick: () => importWithTags() },
                   ],
                 }}
               >
@@ -109,7 +103,12 @@ export default function AppLayout({
                   导入
                 </Button>
               </Dropdown>
-              <Button size="small" onClick={() => setPoseOpen(true)}>
+              {selected === "/library" ? (
+                <Button size="small" loading={reprocessingAll} disabled={reprocessingAll} onClick={() => void reprocessLibrary()}>
+                  全部重新识别
+                </Button>
+              ) : null}
+              <Button size="small" onClick={openSearch}>
                 姿态搜图
               </Button>
               <span className="pb-status">处理中 {jobs.data?.pending || 0}</span>
@@ -134,38 +133,6 @@ export default function AppLayout({
           </Content>
         </Layout>
       </Layout>
-      <Modal title="姿态搜图" open={poseOpen} onCancel={() => setPoseOpen(false)} footer={null} width={720}>
-        <Space direction="vertical" style={{ width: "100%" }}>
-          <Upload.Dragger
-            accept="image/*"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              searchPoseFile(file as File);
-              return false;
-            }}
-          >
-            <p className="ant-upload-text">点击或拖拽图片到这里</p>
-            <p className="ant-upload-hint">用于按姿态搜索图库，支持 jpg / png / webp</p>
-          </Upload.Dragger>
-          {poseMsg ? <Typography.Text type="danger">{poseMsg}</Typography.Text> : null}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {poseItems.map((item: any) => (
-              <MediaImg
-                key={item.id}
-                thumb={item.thumbnail_url || `/media/thumbnails/${item.uid || ""}`}
-                original={item.original_url}
-                width={96}
-                height={96}
-                style={{ cursor: "pointer" }}
-                onClick={() => {
-                  setPoseOpen(false);
-                  nav(`/library?select=${item.id}`);
-                }}
-              />
-            ))}
-          </div>
-        </Space>
-      </Modal>
     </div>
   );
 }

@@ -12,6 +12,7 @@ def search_by_landmarks(query_landmarks: list[dict], limit: int = 20, exclude_id
             SELECT id, uid, thumbnail_path, original_path, pose_landmarks, width, height
             FROM images
             WHERE pose_status = 'ok' AND pose_landmarks IS NOT NULL
+              AND COALESCE(in_library, 1) != 0
             """
         ).fetchall()
     finally:

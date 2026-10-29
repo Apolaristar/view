@@ -233,6 +233,10 @@ def get_board(board_id: int) -> Optional[dict]:
                     "crop_y": row["crop_y"] if "crop_y" in keys else 0,
                     "crop_w": row["crop_w"] if "crop_w" in keys else 1,
                     "crop_h": row["crop_h"] if "crop_h" in keys else 1,
+                    "flipped": bool(row["flipped"]) if "flipped" in keys else False,
+                    "grayscale": bool(row["grayscale"]) if "grayscale" in keys else False,
+                    "locked": bool(row["locked"]) if "locked" in keys else False,
+                    "group_id": row["group_id"] if "group_id" in keys else None,
                     "image": image,
                 }
             )
@@ -242,6 +246,7 @@ def get_board(board_id: int) -> Optional[dict]:
             "pan_x": b["pan_x"],
             "pan_y": b["pan_y"],
             "zoom": b["zoom"],
+            "grayscale": bool(b["grayscale"]) if "grayscale" in b.keys() else False,
             "updated_at": b["updated_at"],
             "items": serialized_items,
             "tray": _tray_images(conn, board_id),
@@ -292,16 +297,29 @@ def delete_board(board_id: int) -> bool:
         conn.close()
 
 
-def save_layout(board_id: int, pan_x: float, pan_y: float, zoom: float, items: list[dict]) -> Optional[dict]:
+def save_layout(
+    board_id: int,
+    pan_x: float,
+    pan_y: float,
+    zoom: float,
+    items: list[dict],
+    grayscale: bool | None = None,
+) -> Optional[dict]:
     conn = connect()
     try:
         row = conn.execute("SELECT id FROM boards WHERE id = ?", (board_id,)).fetchone()
         if row is None:
             return None
-        conn.execute(
-            "UPDATE boards SET pan_x = ?, pan_y = ?, zoom = ?, updated_at = ? WHERE id = ?",
-            (pan_x, pan_y, zoom, utcnow(), board_id),
-        )
+        if grayscale is None:
+            conn.execute(
+                "UPDATE boards SET pan_x = ?, pan_y = ?, zoom = ?, updated_at = ? WHERE id = ?",
+                (pan_x, pan_y, zoom, utcnow(), board_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE boards SET pan_x = ?, pan_y = ?, zoom = ?, grayscale = ?, updated_at = ? WHERE id = ?",
+                (pan_x, pan_y, zoom, 1 if grayscale else 0, utcnow(), board_id),
+            )
         conn.execute("DELETE FROM board_items WHERE board_id = ?", (board_id,))
         for item in items:
             image_id = item["image_id"] if isinstance(item, dict) else item.image_id
@@ -317,9 +335,9 @@ def save_layout(board_id: int, pan_x: float, pan_y: float, zoom: float, items: l
                 """
                 INSERT INTO board_items(
                   board_id, image_id, x, y, width, height, z_index,
-                  rotation, crop_x, crop_y, crop_w, crop_h
+                  rotation, crop_x, crop_y, crop_w, crop_h, flipped, grayscale, locked, group_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     board_id,
@@ -334,6 +352,10 @@ def save_layout(board_id: int, pan_x: float, pan_y: float, zoom: float, items: l
                     field("crop_y", 0) or 0,
                     field("crop_w", 1) if field("crop_w", 1) else 1,
                     field("crop_h", 1) if field("crop_h", 1) else 1,
+                    1 if field("flipped", False) else 0,
+                    1 if field("grayscale", False) else 0,
+                    1 if field("locked", False) else 0,
+                    field("group_id", None) or None,
                 ),
             )
         _sync_tray_from_items(conn, board_id)
@@ -363,9 +385,9 @@ def add_item(board_id: int, image_id: int, x: float, y: float, width: float, hei
             """
             INSERT INTO board_items(
               board_id, image_id, x, y, width, height, z_index,
-              rotation, crop_x, crop_y, crop_w, crop_h
+              rotation, crop_x, crop_y, crop_w, crop_h, flipped, grayscale
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 1, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 1, 1, 0, 0)
             """,
             (board_id, image_id, x, y, width, height, z),
         )

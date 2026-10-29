@@ -83,7 +83,7 @@ export default function FamilyPicker({
 }) {
   const hidden = new Set(exclude.filter(Boolean));
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 2, maxWidth: 240 }}>
+    <div className="pb-family-picker">
       {allowEmpty ? <ColorDot family="" selected={!value} onClick={() => onChange("")} /> : null}
       {COLOR_FAMILIES.filter((f) => !hidden.has(f)).map((f) => (
         <ColorDot key={f} family={f} selected={value === f} onClick={() => onChange(value === f && allowEmpty ? "" : f)} />

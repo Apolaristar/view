@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Optional
 
 from core.color_extractor import matches_family_filter, matches_secondary_filter, parse_family_list, resolve_secondary_family
@@ -22,6 +23,12 @@ def parse_json_list(raw) -> list:
 
 def serialize_image(row: dict, tags: Optional[list] = None) -> dict:
     uid = row["uid"]
+    landmarks = parse_json_list(row.get("pose_landmarks"))
+    people = {
+        int(point.get("person", 0) or 0)
+        for point in landmarks
+        if isinstance(point, dict)
+    }
     return {
         "id": row["id"],
         "uid": uid,
@@ -30,8 +37,11 @@ def serialize_image(row: dict, tags: Optional[list] = None) -> dict:
         "file_hash": row["file_hash"],
         "width": row["width"],
         "height": row["height"],
-        "camera_angle": row["camera_angle"],
-        "pose_landmarks": parse_json_list(row.get("pose_landmarks")),
+        "camera_angle": row.get("camera_angle") or "unknown",
+        "body_framing": row.get("body_framing") or "unknown",
+        "head_yaw": row.get("head_yaw") or "unknown",
+        "pose_landmarks": landmarks,
+        "pose_people": len(people) if landmarks else 0,
         "pose_status": row["pose_status"],
         "color_status": row["color_status"],
         "palette": parse_json_list(row.get("palette")),
@@ -43,6 +53,7 @@ def serialize_image(row: dict, tags: Optional[list] = None) -> dict:
         "thumbnail_url": f"/media/thumbnails/{uid}",
         "original_url": f"/media/originals/{uid}",
         "local_path": str(originals_dir() / row["original_path"]),
+        "in_library": bool(row["in_library"]) if "in_library" in row else True,
         "tags": tags if tags is not None else [],
     }
 
@@ -89,6 +100,25 @@ def expand_tag_ids(conn, tag_ids: list[int]) -> list[int]:
     return list(expanded)
 
 
+_yaw_lock = threading.Lock()
+_yaw_synced = False
+
+
+def _ensure_yaw_synced() -> None:
+    global _yaw_synced
+    if _yaw_synced:
+        return
+    with _yaw_lock:
+        if _yaw_synced:
+            return
+        refresh_library_framing()
+        _yaw_synced = True
+
+
+def sync_inferred_labels() -> None:
+    _ensure_yaw_synced()
+
+
 def list_images(
     tag_ids: list[int] | None = None,
     families: list[str] | None = None,
@@ -97,12 +127,15 @@ def list_images(
     q: str | None = None,
     failed: bool = False,
     secondary: list[str] | None = None,
+    body_framing: list[str] | None = None,
+    head_yaw: list[str] | None = None,
     limit: int = 60,
     offset: int = 0,
 ) -> dict:
+    _ensure_yaw_synced()
     conn = connect()
     try:
-        sql = "SELECT * FROM images WHERE 1=1"
+        sql = "SELECT * FROM images WHERE COALESCE(in_library, 1) != 0"
         params: list = []
         if angle:
             sql += " AND camera_angle = ?"
@@ -110,6 +143,18 @@ def list_images(
         if pose_status:
             sql += " AND pose_status = ?"
             params.append(pose_status)
+        if body_framing:
+            wanted = [x for x in body_framing if x]
+            if wanted:
+                placeholders = ",".join("?" * len(wanted))
+                sql += f" AND COALESCE(body_framing, 'unknown') IN ({placeholders})"
+                params.extend(wanted)
+        if head_yaw:
+            wanted_yaw = [x for x in head_yaw if x]
+            if wanted_yaw:
+                placeholders = ",".join("?" * len(wanted_yaw))
+                sql += f" AND COALESCE(head_yaw, 'unknown') IN ({placeholders})"
+                params.extend(wanted_yaw)
         if failed:
             sql += " AND (pose_status = 'failed' OR color_status = 'failed')"
         if q:
@@ -145,6 +190,7 @@ def list_images(
 
 
 def get_image(image_id: int) -> Optional[dict]:
+    _ensure_yaw_synced()
     conn = connect()
     try:
         row = conn.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone()
@@ -210,6 +256,8 @@ def patch_image(
     primary_family=None,
     secondary_family=None,
     extra_families=None,
+    body_framing=None,
+    head_yaw=None,
 ) -> Optional[dict]:
     conn = connect()
     try:
@@ -230,12 +278,75 @@ def patch_image(
                 "UPDATE images SET extra_families = ? WHERE id = ?",
                 (json.dumps(cleaned, ensure_ascii=False), image_id),
             )
+        if body_framing is not None:
+            value = str(body_framing or "unknown")
+            if value not in {"head", "bust", "half", "full", "unknown"}:
+                value = "unknown"
+            conn.execute(
+                "UPDATE images SET body_framing = ?, body_framing_manual = 1 WHERE id = ?",
+                (value, image_id),
+            )
+        if head_yaw is not None:
+            yaw = str(head_yaw or "unknown")
+            if yaw not in {"front", "three_quarter", "profile", "unknown"}:
+                yaw = "unknown"
+            conn.execute(
+                "UPDATE images SET head_yaw = ?, head_yaw_manual = 1 WHERE id = ?",
+                (yaw, image_id),
+            )
         if primary_family is not None or secondary_family is not None or extra_families is not None:
             conn.execute("UPDATE images SET color_manual = 1 WHERE id = ?", (image_id,))
         conn.commit()
     finally:
         conn.close()
     return get_image(image_id)
+
+
+def refresh_library_framing() -> dict:
+    from core.pose_extractor import infer_body_framing, infer_head_yaw, parse_landmarks
+
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, pose_status, pose_landmarks,
+                   COALESCE(body_framing, 'unknown') AS body_framing,
+                   COALESCE(body_framing_manual, 0) AS body_framing_manual,
+                   COALESCE(head_yaw, 'unknown') AS head_yaw,
+                   COALESCE(head_yaw_manual, 0) AS head_yaw_manual
+            FROM images
+            WHERE COALESCE(in_library, 1) != 0
+            """
+        ).fetchall()
+        scanned = 0
+        updated = 0
+        for row in rows:
+            scanned += 1
+            landmarks = parse_landmarks(row["pose_landmarks"])
+            if landmarks:
+                framing = infer_body_framing(landmarks)
+                yaw = infer_head_yaw(landmarks)
+            elif row["pose_status"] == "ok":
+                framing = "unknown"
+                yaw = "unknown"
+            else:
+                continue
+            fields: list[str] = []
+            values: list = []
+            if not row["body_framing_manual"] and framing != (row["body_framing"] or "unknown"):
+                fields.append("body_framing = ?")
+                values.append(framing)
+            if not row["head_yaw_manual"] and yaw != (row["head_yaw"] or "unknown"):
+                fields.append("head_yaw = ?")
+                values.append(yaw)
+            if fields:
+                values.append(int(row["id"]))
+                conn.execute(f"UPDATE images SET {', '.join(fields)} WHERE id = ?", values)
+                updated += 1
+        conn.commit()
+        return {"scanned": scanned, "updated": updated}
+    finally:
+        conn.close()
 
 
 def save_palette(image_id: int, palette: list) -> Optional[dict]:
@@ -387,21 +498,26 @@ def delete_tag(tag_id: int) -> bool:
         conn.close()
 
 
+def resolve_tag_ancestors(conn, tag_ids: list[int]) -> list[int]:
+    resolved: list[int] = []
+    for tid in dict.fromkeys(tag_ids):
+        current = tid
+        while current and current not in resolved:
+            exists = conn.execute("SELECT id, parent_id FROM tags WHERE id = ?", (current,)).fetchone()
+            if not exists:
+                break
+            resolved.append(int(exists["id"]))
+            current = exists["parent_id"]
+    return resolved
+
+
 def set_image_tags(image_id: int, tag_ids: list[int]) -> Optional[dict]:
     conn = connect()
     try:
         row = conn.execute("SELECT id FROM images WHERE id = ?", (image_id,)).fetchone()
         if row is None:
             return None
-        resolved: list[int] = []
-        for tid in dict.fromkeys(tag_ids):
-            current = tid
-            while current and current not in resolved:
-                exists = conn.execute("SELECT id, parent_id FROM tags WHERE id = ?", (current,)).fetchone()
-                if not exists:
-                    break
-                resolved.append(int(exists["id"]))
-                current = exists["parent_id"]
+        resolved = resolve_tag_ancestors(conn, tag_ids)
         conn.execute("DELETE FROM image_tags WHERE image_id = ?", (image_id,))
         for tid in resolved:
             conn.execute(
@@ -417,16 +533,21 @@ def set_image_tags(image_id: int, tag_ids: list[int]) -> Optional[dict]:
 def batch_tags(image_ids: list[int], add: list[int], remove: list[int]) -> dict:
     conn = connect()
     try:
+        add_ids = resolve_tag_ancestors(conn, add)
+        remove_ids: list[int] = []
+        for tid in dict.fromkeys(remove):
+            remove_ids.extend(expand_tag_ids(conn, [tid]))
+        remove_ids = list(dict.fromkeys(remove_ids))
         for image_id in image_ids:
             exists = conn.execute("SELECT id FROM images WHERE id = ?", (image_id,)).fetchone()
             if not exists:
                 continue
-            for tid in add:
+            for tid in add_ids:
                 conn.execute(
                     "INSERT OR IGNORE INTO image_tags(image_id, tag_id) VALUES (?, ?)",
                     (image_id, tid),
                 )
-            for tid in remove:
+            for tid in remove_ids:
                 conn.execute(
                     "DELETE FROM image_tags WHERE image_id = ? AND tag_id = ?",
                     (image_id, tid),
